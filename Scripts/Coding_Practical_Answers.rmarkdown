@@ -683,4 +683,3 @@ summary(mod_RE)
 ```
 
 That's all we're able to cover in this short workshop! This only covers some very basics of SSFs, they have much more to offer. I think the beauty in SSFs is that they are incredibly flexible and allow you to answer an enormous range of possible questions using movement data. The idea behind this workshop was to give you an introduction so that you know what they are, see some examples of questions that can be addressed with them and learn how to implement some of the basic models. I also wanted to show you some ways in which SSFs can be expanded to add more complexity and realism. If you found any of the applications interesting you can continue digging, there is an increasingly large body of literature available. I hope you enjoyed the course as much as I enjoyed preparing it!
-

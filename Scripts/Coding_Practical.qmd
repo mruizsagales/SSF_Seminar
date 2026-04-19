@@ -73,14 +73,37 @@ You can use the following chunk to write your code. You already have the code to
 #| label: Data loading
 
 # 1. Load the chamois tracks
-#### your code here
+
+#a) What do the data look like? What kind of object did you just load?
+
+tracks <- readRDS(here("Data", "Movement_Data", "Chamois_Tracks.rds"))
+
+summary(tracks)
+class(tracks)
 
 # 2. Have a look at how the data are structured (questions a-d)
-#### your code here
-  
-# 3. Explore the individual tracks (question e)
-#### your code here
 
+#b) How many rows of data do we have? What does each row represent?
+
+nrow(tracks)
+# a coordinates and timestamp of a certain individual.
+
+#c) What columns do our data contain? What does each column represent?
+colnames(tracks)
+#coordinates, timestamp, individual IS.
+
+#d) How many individual tracks does our dataset contain? (this information is stored in the ID column)
+
+unique(tracks$ID)
+length(unique(tracks$ID))
+
+# 3. Explore the individual tracks (question e)
+
+#e) How long is each track? Both in number of locations as well as the time between the first and last location (in days).
+
+length <- tracks %>% dplyr::group_by(ID) %>% summarise(time_length= max(time)-min(time), n())
+
+length$time_length
 ```
 
 ## Selecting one individual and plotting its track
@@ -97,10 +120,12 @@ Use the following chunk to write your code. Remember that if you're stuck you ca
 #| label: Choosing and plotting an example individual
 
 # Choose one individual 
-#### your code here
+
+tracks_25 <- tracks %>% dplyr::filter(ID %in% c(25))
 
 # Plot the track
-#### your code here
+
+ggplot(tracks_25, aes(x,y, color=as.factor(ID))) + geom_point() + geom_path() + theme_bw()
 
 ```
 
@@ -120,16 +145,36 @@ Since we are trying to determine what is driving our animals to move the way the
 #| label: Reading Env Data
 
 # Reading the altitude data
-#### your code here
+
+altitude <- terra::rast("/Users/marcruizisagales/Downloads/SSF_Seminar-main/Data/Cartography/DEM.gpkg")
+
+plot(altitude)
+
+# Read the habitat (Habitats_Reclassified.gpkg) and the altitude (DEM.gpkg) layers. Both are rasters, which you can open using the rast() function of the terra package.
 
 # Reading the habitat data
-#### your code here
 
 # Plot the elevation and habitat
-#### your code here
+
+habitats <- terra::rast("/Users/marcruizisagales/Downloads/SSF_Seminar-main/Data/Cartography/Habitats_Reclassified.gpkg")
+
+levels(habitats)[[1]] <- data.frame(ID=c(1,2,3),
+                                   habitat = c("Open", "Shrubland", "Forest"))
+
+plot(habitats)
+
+#b) What is the rough altitudinal range in our study area?
 
 # Check the altitudinal range
-#### your code here
+altitude$Height
+#min value   :  619.04 
+#max value   : 2648.26
+
+#c) Which habitat classes do we have in our study area? Do you think they might condition how animals move? Do you think the chamois will have a prefered habitat?
+
+habitats
+#1,2,3, yes, yes.
+
 
 ```
 
@@ -169,18 +214,24 @@ Remember that the help pages in RStudio are usually decent, and you can access t
 #| label: Check Sampling Rates
 
 # Convert the track to amt-trk
-#### your code here
+
+# a) Convert your track to a trk class object of the amt package. You will have to use the make_track() function. You should specify crs = 25831 as this is the projection the data are in. Name your new object ind_trk.
+
+ind_trk <- amt::make_track(tracks_25, .x=x, .y=y, .t=time, crs = 25831)
 
 # Check the sampling rates
-#### your code here
+
+# b) Now that you have a trk object, use the summarize_sampling_rate() function to check the sampling intervals in your data. You can also view the dataset and check some values manually. Are they all exactly the same? No
+
+summarize_sampling_rate(ind_trk) # each 20 min aprox
 
 ```
 
-Since it seems that most locations are taken every 20min we will use this as our sampling interval. We will now start constructing our steps. This means taking two successive points, calculate the distance between them and the turning angle (respective to the direction of the previous step). If the time interval between our two points is around 10min (we may leave 1-2min as a tolerance margin) we can proceed to define the step. If the time interval is much different (e.g. due to a GPS malfunction) we will not use these two points to define a step and move on to the next points. For this process you will need to do the following:
+Since it seems that most locations are taken every 20min we will use this as our sampling interval. We will now start constructing our steps. This means taking two successive points, calculate the distance between them and the turning angle (respective to the direction of the previous step). If the time interval between our two points is around 20min (we may leave 1-2min as a tolerance margin) we can proceed to define the step. If the time interval is much different (e.g. due to a GPS malfunction) we will not use these two points to define a step and move on to the next points. For this process you will need to do the following:
 
 *a) Resample the track so that your steps' time intervals are 20minutes . You can do this by using the `track_resample()` function and set the sampling rate to 20min and the tolerance to 2min (you will have to specify `minutes(20)` and `minutes(2)` in the argument).*
 
-*b) When resampling, you will notice that there is a new column in your dataset called `burst_`. A sequence of locations that are each separated by 10min from the previous one form a burst. When we hit a location that is more than 10min from the previous our burst is interrupted and we start a new burst. We will have to get rid of all bursts with less than 3 locations. After resampling, run `filter_min_n_burst(n = 3)` on the resampled dataset. Why do you think we need to do this?*
+*b) When resampling, you will notice that there is a new column in your dataset called `burst_`. A sequence of locations that are each separated by 20min from the previous one form a burst. When we hit a location that is more than 10min from the previous our burst is interrupted and we start a new burst. We will have to get rid of all bursts with less than 3 locations. After resampling, run `filter_min_n_burst(n = 3)` on the resampled dataset. Why do you think we need to do this? We need minimum a burst of 3 locations because a burst with 2 locations is an step.*
 
 *c) Inspect the track object before and after using `track_resample()`, what has changed? How many bursts are there?*
 
@@ -192,19 +243,44 @@ Since it seems that most locations are taken every 20min we will use this as our
 #| label: Resample Tracks and Define Steps
 
 # Inspect the track before resampling
-#### your code here
+ind_trk
 
 # Resample to 20min intervals with a 2min tolerance
-#### your code here
+# a) Resample the track so that your steps' time intervals are 20minutes . You can do this by using the track_resample() function and set the sampling rate to 20min and the tolerance to 2min (you will have to specify minutes(20) and minutes(2) in the argument).
+
+resampledtrack <- track_resample(ind_trk, rate= minutes(20), tolerance= minutes(2))
 
 # Inspect the resampled track
-#### your code here
+
+# b) When resampling, you will notice that there is a new column in your dataset called burst_. A sequence of locations that are each separated by 10min from the previous one form a burst. When we hit a location that is more than 20min from the previous our burst is interrupted and we start a new burst. We will have to get rid of all bursts with less than 3 locations. After resampling, run filter_min_n_burst(n = 3) on the resampled dataset. Why do you think we need to do this? We need minimum a burst of 3 locations because a burst with 2 locations is an step.
+
+resampledtrack_filtered <- filter_min_n_burst(resampledtrack, n = 3)
+
+# c) Inspect the track object before and after using track_resample(), what has changed? How many bursts are there?
+
+resampledtrack
+
+nrow(resampledtrack_filtered)
+nrow(ind_trk)
 
 # Now create the dataset of steps
-#### your code here
+# d) Now define the steps (e.g. calculate step lengths and turning angles for each pair of locations) using the steps_by_burst() function, you will have to. Check out how the dataset looks now. What does each row represent now? Store your output in an object called steps.
+
+steps <- steps_by_burst(resampledtrack_filtered)
+glimpse(steps)
 
 # Check the resulting dataset
-#### your code here
+
+steps
+
+# What is the difference between x1_, x2_, y1_ and y2_? The first row is missing the turning angle, why is that? 
+
+hist(steps$x1_-steps$x2_) # difference between locations in the x axis
+
+hist(steps$y1_-steps$y2_) # difference between locations in the y axis
+
+# e) The two most important columns in our steps dataframe are sl_ and ta_. What do you think they represent? step length and turning angle. What is the difference between x1_, x2_, y1_ and y2_?
+# direction to north. The first row is missing the turning angle, why is that?  # Because it is the starting point, and don't have the angle from where it came.
 
 ```
 
@@ -220,10 +296,26 @@ We now have to choose how to simulate those new steps. This means that we'll be 
 #| label: Fitting sl and ta distributions
 
 # Inspect sl_ and ta_ in our real steps
-#### your code here
+
+# a) Visualize the distribution of step lengths and turning angles of our real steps dataset. You can simply plot a histogram of sl_ and ta_. What distribution do you think might be a good fit for them?
+
+hist(steps$sl_) # exponential
+hist(steps$ta_) # von misses
+
+library(performance)
+check_distribution(steps$sl_)
+check_distribution(steps$ta_)
 
 # Fit the step length and turning angle distributions
-#### your code here
+# b) We will choose an exponential distribution to model step lengths and a Von Mises distribution to model turning angles. To fit these the amt package has the fit_distr() function that does it directly when you give it a vector of step lengths or turning angles and the name of the distribution you want to fit (in this case "exp" and "vonmises"). You can store the fitted distributions in an object (call them sl_dist and ta_dist, we will need them later on.
+
+sl_dist <- amt::fit_distr(steps$sl_, dist_name = "exp")
+ta_dist <- amt::fit_distr(steps$ta_, dist_name = "vonmises")
+
+sl_dist
+sl_dist$params$rate
+ta_dist
+ta_dist$params$kappa
 ```
 
 Now we know what the biased movement kernel looks like for our study individual. We have fitted a step length and turning angle distribution that match our data and have gotten their respective paramters. Now that we have the two distributions and the original dataset of steps let's generate new random steps for each real one.
@@ -238,13 +330,25 @@ Now we know what the biased movement kernel looks like for our study individual.
 #| label: Fitting sl and ta distributions and simulate steps
 
 # Generate random steps 
-#### your code here
+
+# a) Generate random steps for our observed ones. We do this by using the random_steps() function, passing the original steps, the step length and turning angle distributions and the number of steps we want to simulate (in this case we'll choose 20). Store it in an object named random_steps.
+
+random_steps <- random_steps(steps, sl_distr = sl_dist, ta_distr = ta_dist, n_control =20) 
 
 # Explore the random steps object
-#### your code here
+
+# b) Inspect the resulting dataset. Before checking how many rows there are think how many you would expect, does it match your expectation? Check out the new column called case_. What information does it contain?
+
+random_steps
+
+nrow(random_steps)
+random_steps$case_
 
 # View the step lengths and turning angles from the simulated steps
-#### your code here
+
+# c) Check out the step length and turning angle distributions of the simulated steps. Compare them to the original data.
+hist(random_steps$sl_, breaks=100)
+hist(random_steps$ta_, breaks=100)
 ```
 
 Now that we have a dataset of real and simulated steps, we want to see if chamois choose their steps based on the habitat of the place they will end up at. We want to know if how much more likely they are to choose one habitat above the other **all else being equal**. To do so we need to know what habitat category we have at the end of our steps (real and simulated), this is the last thing we have to do to prepare the data for fitting the SSF. There are many ways to do so, here again `amt` is coming to our help with the `extract_covariates()` function.
@@ -257,10 +361,13 @@ Now that we have a dataset of real and simulated steps, we want to see if chamoi
 #| label: Habitat covariate extraction
 
 # Extract habitat covariates at the end of steps
-#### your code here
+#a) Extract the habitat value at the end of each step. Pass the random_steps object as the data, the habitat raster to the covariates argument, and use the where = "end" argument. Why do you think it's important to extract the habitat at the end location instead of the starting location? Could you imagine a case in which we would want to extract covariate values for the starting location of a step? Name the resulting object ssf_data.
+
+ssf_data <- extract_covariates(random_steps, covariates = c(habitats), where = "end")
 
 # Inspect the resulting object
-#### your code here
+
+glimpse(ssf_data)
 
 ```
 
@@ -276,22 +383,26 @@ As you will see, once you have your data in the right format, fitting is quite s
 
 *b) Inspect the model object. What are the four main slots within it (you can either use `str(fitted_ssf)` or in RStudio write `fitted_ssf$` and wait for the autocomplete to show you. What does each one contain?*
 
-*c) Compare the `fitted_ssf$sl_` slot with the `sl_dist` object we fitted earlier. What do you see?*
+*c) Compare the `fitted_ssf$sl_` slot with the `sl_dist` object we fitted earlier. What do you see?* <!--#  -->
 
 ```{r}
 #| label: Fitting the habitat SSF model
 
 # Fit the ssf model
-#### your code here 
-
+# Let's determine the model formula together, then try and run the model with one of the two functions (doesn't matter which, the output should be the same). Store the model in an object named fitted_ssf.
+fitted_ssf <- amt::fit_ssf(ssf_data, formula = case_ ~ cos(ta_) + sl_ + habitat + strata(step_id_) )
 
 # Inspect the model object
-#### your code here
+# b) Inspect the model object. What are the four main slots within it (you can either use str(fitted_ssf) or in RStudio write fitted_ssf$ and wait for the autocomplete to show you. What does each one contain?
 
+str(fitted_ssf)
+fitted_ssf # model, sl, ta, more
 
 # Compare the sl_ slot with the sl_dist object
-#### your code here
 
+#Compare the fitted_ssf$sl_ slot with the sl_dist object we fitted earlier. What do you see?
+fitted_ssf$sl_
+sl_dist
 ```
 
 Before we can proceed there is something important that we can't forget. We have to update the parameters of our step length and turning angle distributions! The reason for this will be explained tomorrow, but you need to know that this is very important if you plan on analysing any results concerning the movement kernel. If you're just interested in the selection kernel you can skip this, but I think it's good practice to do it in case we ever want to go back to the movement kernel.
@@ -308,16 +419,26 @@ First we'll do it by using the `update_sl_distr()` and `update_ta_distr()` funct
 #| label: Update movement kernel distributions
 
 # Update the step length distribution
-#### your code here
+sl_update <- update_sl_distr(fitted_ssf)
 
 # Update the turn angle distribution
-#### your code here
+ta_update <- update_ta_distr(fitted_ssf, beta_cos_ta = "cos(ta_)")
 
 # Update the movement kernel manually
-#### your code here
+
+sl_update_manual <- sl_dist 
+sl_update_manual$params$rate <- sl_update_manual$params$rate -
+fitted_ssf$model$coefficients["sl_"]
+
+ta_update_manual <- ta_dist
+ta_update_manual$params$kappa <- ta_update_manual$params$kappa +
+  fitted_ssf$model$coefficients["cos(ta_)"]
 
 # Check if the updated distributions are identical
-#### your code here
+
+sl_update$params$rate == sl_update_manual$params$rate
+ta_update$params$kappa == ta_update_manual$params$kappa
+
 ```
 
 Now that we have the selection-free movement kernel we can explore the results.
@@ -334,7 +455,8 @@ As usual, the first thing we'll do is check out the model summary. When we run `
 #| label: SSF summary
 
 # Checking model summary
-#### your code here
+
+summary(fitted_ssf)
 
 ```
 
@@ -350,13 +472,45 @@ Now we can do a quick plot of the movement and selection kernels. For the moveme
 #| label: Plotting
 
 # Plot the step-length distribution
-#### your code here
+sl_plot_data <- data.frame(sl = 0:200)
+sl_plot_data <- sl_plot_data |> 
+  mutate(dens_update = dexp(sl, sl_update$params$rate),
+         dens_biased = dexp(sl, sl_dist$params$rate))
+ggplot(data = sl_plot_data, aes(x = sl)) +
+  geom_line(aes(y = dens_update), color = "red") +
+  geom_line(aes(y = dens_biased), color = "blue")
 
 # Plot the turning-angle distribution
-#### your code here
+# If kappa is positive
+ta_plot_data <- data.frame(ta = seq(-pi, pi, 
+                                    length.out = 200)) |>
+  mutate(dens_update = dvonmises(ta, 0, ta_update$params$kappa),
+         dens_biased = dvonmises(ta, 0, ta_dist$params$kappa))
+ggplot(data = ta_plot_data, aes(x = ta)) +
+  geom_line(aes(y = dens_update), color = "red") + 
+  geom_line(aes(y = dens_biased), color = "blue")
+# # If kappa is negative
+# ta_plot_data <- data.frame(ta = seq(-pi, pi, 
+#                                     length.out = 200)) |>
+#   mutate(dens_update = dvonmises(ta, pi, -ta_update$params$kappa),
+#          dens_biased = dvonmises(ta, 0, ta_dist$params$kappa))
+# ggplot(data = ta_plot_data, aes(x = ta)) +
+#   geom_line(aes(y = dens_update), color = "red") + 
+#   geom_line(aes(y = dens_biased), color = "blue")
 
 # Plot the selection kernel
-#### your code here
+# For the log-odds plot
+logodds_plot_data <- data.frame(Habitat = c("Shrubland",
+                                            "Forest"),   
+                                logodds = c(fitted_ssf$model$coefficients["habitatShrubland"],                                 fitted_ssf$model$coefficients["habitatForest"]))
+
+# For the odds plot
+odds_plot_data <- data.frame(Habitat = c("Shrubland",
+                                         "Forest"),
+                             Odds = c(exp(fitted_ssf$model$coefficients["habitatShrubland"]),
+                                      exp(fitted_ssf$model$coefficients["habitatForest"])))
+ggplot(data = odds_plot_data, aes(x = Habitat, y = Odds)) +
+  geom_col()
 
 ```
 
@@ -373,9 +527,10 @@ We will now start complicating our models slightly, by allowing the parameters o
 ```{r}
 #| label: Extract time of day variable
 
-# Get tod
-#### your code here
-
+# Get tod (es converteix tot en segons i es divideix pels segons en un dia)
+ssf_data <- ssf_data %>% 
+  dplyr::mutate(tod = (hour(t1_)*3600 + minute(t1_)*60 + second(t1_))/86400)
+hist(ssf_data$tod)
 ```
 
 In this case, our "time of day" variable presents a slight complication: it's constant within a step (i.e. both the real and simulated steps show the same value for time of day). As we explained earlier, the set of one real and its associated simulated steps are called a stratum. Since we are only comparing steps within a stratum (we cannot compare a real step with a simulated step corresponding to a different real step), this means we cannot include "time of day" directly in our model as a main effect.
@@ -390,7 +545,8 @@ Before fitting a model we need to have an idea on how we want our movement data 
 #| label: Checking the movement by time of day
 
 # Plot the step lengths by time of day
-#### your code here
+
+ssf_data %>% ggplot(aes(tod,sl_)) + geom_smooth()
 
 ```
 
@@ -406,11 +562,20 @@ What we can do is adding time of day as an interaction term that modulates one o
 #| label: Fitting the time of day model
 
 # Fitting the model with the formula we've decided
-#### your code here
-
+tod_mod <- fit_ssf(data = ssf_data,
+                   case_ ~ 
+                     cos(ta_) +
+                     cos(ta_):cos(2*pi*tod) + 
+                     cos(ta_):sin(2*pi*tod) + 
+                     sl_ +
+                     sl_:cos(2*pi*tod) +
+                     sl_:sin(2*pi*tod) +
+                     habitat +
+                     strata(step_id_))
 
 # Explore the model summary
-#### your code here
+
+summary(tod_mod)
 
 ```
 
@@ -436,16 +601,37 @@ To plot these two parameters easily we can create a dummy dataframe with several
 #| label: Plotting the time-varying movement kernel
 
 # Extract coefficients
-#### your code here
+
+lambda_0 <- tod_mod$sl_$params$rate
+kappa0 <- tod_mod$ta_$params$kappa
+beta_sl <- tod_mod$model$coefficients["sl_"]
+beta_sin_sl <- tod_mod$model$coefficients["sl_:sin(2 * pi * tod)"]
+beta_cos_sl <- tod_mod$model$coefficients["sl_:cos(2 * pi * tod)"]
+beta_ta <- tod_mod$model$coefficients["cos(ta_)"]
+beta_sin_ta <- tod_mod$model$coefficients["cos(ta_):sin(2 * pi * tod)"]
+beta_cos_ta <- tod_mod$model$coefficients["cos(ta_):cos(2 * pi * tod)"]
 
 # Create a dummy dataframe
-#### your code here
+
+plot_tod <- data.frame(time = seq(0, 1, length.out = 1000)) |> 
+  dplyr::mutate(lambda = lambda_0 - 
+           (beta_sl + 
+              beta_sin_sl*sin(2*pi*time) + 
+              beta_cos_sl*cos(2*pi*time)),
+         kappa = kappa0 + 
+           (beta_ta +
+              beta_sin_ta * sin(2*pi*time) +
+              beta_cos_ta * cos(2*pi*time)),
+         mean_sl = 1/lambda)
 
 # Plot the mean step length throughout the day
-#### your code here
+ggplot(data = plot_tod, aes(x = time, y = mean_sl)) +
+  geom_line()
 
 # Plot the concentration of the turning angle distribution through the day
-#### your code here
+
+ggplot(data = plot_tod, aes(x = time, y = kappa)) +
+  geom_line()
 
 ```
 
@@ -465,10 +651,10 @@ The data preparation is essentially the same as for the previous SSFs, we just h
 #| label: Altitude covariate extraction
 
 # Extract altitude covariates at the end of steps
-#### your code here
+ssf_alt_data <- ssf_data %>% extract_covariates(covariates = c(altitude), where = "end")
 
 # Inspect the resulting object
-#### your code here
+summary(ssf_alt_data)
 
 ```
 
@@ -482,13 +668,25 @@ Now that we have our dataset including altitude, let's move on to fit the model.
 #| label: Fitting a GAM-SSF
 
 # Adding a dummy time to allow fitting a Cox-PH model & scaling sl
-#### your code here
+ssf_alt_data$times <- 1
 
 # Fitting the SSF (takes ca. 30s on my PC)
-#### your code here
+nl_ssf <- gam(cbind(times, step_id_) ~ #we add the strata in the begining
+                cos(ta_) +
+                cos(ta_):cos(2*pi*tod) +
+                cos(ta_):sin(2*pi*tod) + 
+                sl_ +
+                sl_:cos(2*pi*tod) +
+                sl_:sin(2*pi*tod) +
+                habitat +
+                s(Height, bs = "tp", k = 10), # we add the altitude term
+              data = ssf_alt_data,
+              family = cox.ph,
+              weights = case_)
+
 
 # Inspect the model output
-#### your code here
+summary(nl_ssf)
 
 ```
 
@@ -500,7 +698,8 @@ One of the main problem with GAMs is that there are no coefficients (at least no
 #| label: Plotting the GAM-SSF for altitude
 
 # Plot the selection smooth for altitude
-#### your code here
+
+plot(nl_ssf)
 
 ```
 
@@ -564,7 +763,8 @@ The fitting of an SSF with a random effect requires some creativity. Here we are
 #                    data = ssf_data_all)
 
 # Load the model object and inspect
-#### your code here
+mod_RE <- readRDS(here("Data", "Outputs", "RE_model.rds"))
+summary(mod_RE)
 
 ```
 

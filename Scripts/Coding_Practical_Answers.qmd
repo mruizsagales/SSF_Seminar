@@ -163,7 +163,7 @@ Now that we have all the data let's think about what we are trying to accomplish
 
 ## Defining our goals
 
-As we have now seen we have data on 10 individual chamois, tracked for an entire week in a study area for which we have cartography on the altitude and habitats. As with any ecological study the most important part is defining our objectives and study questions properly. In an SSF framework there is usually the double goal of modeling movement and habitat selection jointly, although we might give more prominence to one aspect or the other depending on our research goals. In this case we will try to answer several different questions which will serve as case studies for different aspects of SSFs and their implementation over this and the next day. We will start with simple models and then add layers of complexity to model our chamois' movement in a more realistic way.
+As we have now seen we have data on 25 individual chamois, tracked for an entire week in a study area for which we have cartography on the altitude and habitats. As with any ecological study the most important part is defining our objectives and study questions properly. In an SSF framework there is usually the double goal of modeling movement and habitat selection jointly, although we might give more prominence to one aspect or the other depending on our research goals. In this case we will try to answer several different questions which will serve as case studies for different aspects of SSFs and their implementation over this and the next day. We will start with simple models and then add layers of complexity to model our chamois' movement in a more realistic way.
 
 Here are the main questions we will try to answer and what the main goal of each analysis will be:
 
@@ -201,15 +201,15 @@ ind_trk <- make_track(ind, x, y, time, ID, crs = 25831)
 summarize_sampling_rate(ind_trk)
 ```
 
-Since it seems that most locations are taken every 20min we will use this as our sampling interval. We will now start constructing our steps. This means taking two successive points, calculate the distance between them and the turning angle (respective to the direction of the previous step). If the time interval between our two points is around 10min (we may leave 1-2min as a tolerance margin) we can proceed to define the step. If the time interval is much different (e.g. due to a GPS malfunction) we will not use these two points to define a step and move on to the next points. For this process you will need to do the following:
+Since it seems that most locations are taken every 20min we will use this as our sampling interval. We will now start constructing our steps. This means taking two successive points, calculate the distance between them and the turning angle (respective to the direction of the previous step). If the time interval between our two points is around 20min (we may leave 1-2min as a tolerance margin) we can proceed to define the step. If the time interval is much different (e.g. due to a GPS malfunction) we will not use these two points to define a step and move on to the next points. For this process you will need to do the following:
 
 *a) Resample the track so that your steps' time intervals are 20minutes . You can do this by using the `track_resample()` function and set the sampling rate to 20min and the tolerance to 2min (you will have to specify `minutes(20)` and `minutes(2)` in the argument).*
 
-*b) When resampling, you will notice that there is a new column in your dataset called `burst_`. A sequence of locations that are each separated by 10min from the previous one form a burst. When we hit a location that is more than 10min from the previous our burst is interrupted and we start a new burst. We will have to get rid of all bursts with less than 3 locations. After resampling, run `filter_min_n_burst(n = 3)` on the resampled dataset. Why do you think we need to do this?*
+*b) When resampling, you will notice that there is a new column in your dataset called `burst_`. A sequence of locations that are each separated by 20min from the previous one form a burst. When we hit a location that is more than 20min from the previous our burst is interrupted and we start a new burst. We will have to get rid of all bursts with less than 3 locations. After resampling, run `filter_min_n_burst(n = 3)` on the resampled dataset. Why do you think we need to do this?*
 
 *c) Inspect the track object before and after using `track_resample()`, what has changed? How many bursts are there?*
 
-*d)* *Now define the steps (e.g. calculate step lengths and turning angles for each pair of locations) using the `steps_by_burst()` function, you will have to. Check out how the dataset looks now. What does each row represent now? Store your output in an object called `steps`*.
+*d)* *Now define the steps (e.g. calculate step lengths and turning angles for each pair of locations) using the `steps_by_burst()` function. Check out how the dataset looks now. What does each row represent now? Store your output in an object called `steps`*.
 
 *e) The two most important columns in our steps dataframe are `sl_` and `ta_`. What do you think they represent?* *What is the difference between `x1_`, `x2_`, `y1_` and `y2_`? The first row is missing the turning angle, why is that?*
 
@@ -252,7 +252,7 @@ We now have to choose how to simulate those new steps. This means that we'll be 
 #| label: Fitting sl and ta distributions
 
 # Inspect sl_ and ta_ in our real steps
-hist(steps$sl_)
+hist(steps$sl_, breaks = 25)
 hist(steps$ta_)
 
 # Fit the step length and turning angle distributions
@@ -354,7 +354,8 @@ First we'll do it by using the `update_sl_distr()` and `update_ta_distr()` funct
 sl_update <- update_sl_distr(fitted_ssf)
 
 # Update the turn angle distribution
-ta_update <- update_ta_distr(fitted_ssf, beta_cos_ta = "cos(ta_)")
+ta_update <- update_ta_distr(fitted_ssf,
+                             beta_cos_ta = "cos(ta_)")
 
 # Update the movement kernel manually
 sl_update_manual <- sl_dist
@@ -470,7 +471,6 @@ Before fitting a model we need to have an idea on how we want our movement data 
 
 # Plot the step lengths by time of day
 ggplot(data = ssf_data, aes(x = tod, y = sl_)) +
-  geom_point() +
   geom_smooth()
 ```
 
@@ -637,7 +637,7 @@ trks <- make_track(tracks, x, y, time, id = ID, crs = 25831) |>
     track_resample(x, 
                    rate = minutes(40),
                    tolerance = minutes(5)) |> 
-      filter_min_n_burst(n = 10) |> 
+      filter_min_n_burst(n = 3) |> 
       steps_by_burst()
   })) |> 
   select(id, steps) |> 
